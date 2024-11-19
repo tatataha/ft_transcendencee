@@ -1,0 +1,84 @@
+services:
+  db:
+    image: postgres
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+  web:
+    build: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/code
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    depends_on:
+      - db
+      - redis  # Redis servisine bağımlılığı ekleyin
+
+  redis:
+    image: "redis:latest"  # Redis servisini tanımlayın
+    ports:
+      - "6379:6379"  # Redis portunu açın
+
+  nginx:
+    build: ./nginx
+    image: nginx:latest
+    restart: always
+    volumes:
+      - ./nginx/conf/default.conf:/etc/nginx/nginx.conf
+      - ./backend:/code  # Mount backend for static/media file serving
+      - ./nginx/conf/localhost.key:/etc/ssl/private/localhost.key
+      - ./nginx/conf/localhost.crt:/etc/ssl/certs/localhost.crt
+      - ./nginx/front:/usr/share/nginx/html
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web  # Ensure Nginx waits for the web service to be available
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./Devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./Devops/prometheus/rules.yml:/etc/prometheus/rules.yml
+    restart: always
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    volumes:
+      - ./Devops/grafana/main.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./Devops/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./Devops/grafana/data-sources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/host'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
