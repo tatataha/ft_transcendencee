@@ -1,4 +1,3 @@
-42 ft_transcendence project
 SPA (Single Page Application) Pong Game Website
 with many features that I developed using django, pure JS, Docker and many other technologies. 
 Ecolé 42 is my graduation project.
